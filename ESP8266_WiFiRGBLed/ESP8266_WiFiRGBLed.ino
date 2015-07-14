@@ -3,8 +3,6 @@
 #include <stdlib.h>
 #include <ESP8266WiFi.h>
 
-#define COMMON_ANODE
-
 const char* ssid = "MyCharterWiFic5-2G";
 const char* password = "434586215215";
 const char* host = "www.carlsoncoder.com";
@@ -148,12 +146,6 @@ void processRGBString() {
 }
 
 void setRGBValues(int red, int green, int blue) {
-  #ifdef COMMON_ANODE
-    red = 255 - red;
-    green = 255 - green;
-    blue = 255 - blue;
-  #endif
-  
    if (red == lastR && green == lastG && blue == lastB) {
     return;
    }
