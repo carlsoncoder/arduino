@@ -1,20 +1,21 @@
 #include <Adafruit_NeoPixel.h>
 
-#define NEOPIXEL_PIN 12
+#define POT_PIN 3
+#define NEOPIXEL_PIN 5
 #define NUMPIXELS 3
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUMPIXELS, NEOPIXEL_PIN);
 
 String serialInput;
 int r, g, b;
-int currentPixelIndex = 0;
+int lastBrightness = -1;
 
 void setup()
 {
   Serial.begin(115200);
   
   strip.begin();
-  strip.setBrightness(80);
+  strip.setBrightness(64);
   strip.show();
 
   initColors();
@@ -25,7 +26,6 @@ void loop()
 { 
   if (Serial.available() > 0) {
     serialInput = Serial.readStringUntil('\n');
-    Serial.println(serialInput);
     if (serialInput.startsWith("RGB:")) {
       String rgbSubstring = serialInput.substring(4);
       char rgbCharArray[rgbSubstring.length() + 1];
@@ -51,25 +51,42 @@ void loop()
       }
 
       setColors(r, g, b);
-
     }
   }
-  
+
+  determineBrightness();
   delay(100);
 }
 
+void determineBrightness() {
+  int brightness = analogRead(POT_PIN) / 4;
+    
+  if (brightness == lastBrightness) {
+    // no change, nothing to do
+    return;
+  }
+  else if (lastBrightness != -1) {
+      if (brightness == 0) {
+        brightness = 1;
+      }
+      
+      strip.setBrightness(brightness);
+      strip.show();
+      delay(100);
+  }
+  
+  lastBrightness = brightness;
+}
+
 void initColors() {
-  strip.setPixelColor(0, 0, 255, 170);
-  strip.setPixelColor(1, 0, 255, 170);
-  strip.setPixelColor(2, 0, 255, 170);  
+  strip.setPixelColor(0, 255, 0, 0);    // red
+  strip.setPixelColor(1, 255, 255, 0);  // yellow
+  strip.setPixelColor(2, 0, 255, 0);    // green
 }
 
 void setColors(int red, int green, int blue) {
-  strip.setPixelColor(currentPixelIndex, red, green, blue);
-  currentPixelIndex++;
-
-  if (currentPixelIndex > 2) {
-    currentPixelIndex = 0;
+  for (int i = 0; i < NUMPIXELS; i++) {
+    strip.setPixelColor(i, red, green, blue);  
   }
   
   strip.show();
