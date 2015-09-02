@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <ESP8266WiFi.h>
 
-const char* ssid = "MyCharterWiFic5-2G";
-const char* password = "434586215215";
+const char* ssid = "Verizon-SM-G900V-BBA4";
+const char* password = "yudu497/";
 const char* host = "www.carlsoncoder.com";
 
 boolean startReading = false;
