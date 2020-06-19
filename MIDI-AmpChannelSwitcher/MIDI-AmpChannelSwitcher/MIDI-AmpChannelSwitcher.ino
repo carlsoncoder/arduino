@@ -22,9 +22,9 @@
 
 // Arduino PIN definitions
 #define CHANNEL_TQRELAY_POSITIVE_PIN 8    // Connect this pin (8) on Arduino to the "+" pin (Pin 10) on the TQ2-L-5V relay controlling the channel - Connect COM and NO (no continuity) (Pins 7&8 or 3&4 on relay) to Sleeve & Tip on TRS output jack
-#define CHANNEL_TQRELAY_NEGATIVE_PIN 11   // Connect this pin (11) on Arduino to the "-" pin (Pin 1) on the TQ2-L-5V relay controlling the channel - Connect COM and NO (no continuity) (Pins 7&8 or 3&4 on relay) to Sleeve & Tip on TRS output jack
+#define CHANNEL_TQRELAY_NEGATIVE_PIN 9   // Connect this pin (9) on Arduino to the "-" pin (Pin 1) on the TQ2-L-5V relay controlling the channel - Connect COM and NO (no continuity) (Pins 7&8 or 3&4 on relay) to Sleeve & Tip on TRS output jack
 #define VOICE_TQRELAY_POSITIVE_PIN 10     // Connect this pin (10) on Arduino to the "+" pin (Pin 10) on the TQ2-L-5V relay controlling the voicing - Connect COM and NO (no continuity) (Pins 7&8 or 3&4 on relay) to Sleeve & Ring on TRS output jack
-#define VOICE_TQRELAY_NEGATIVE_PIN 9      // Connect this pin (9) on Arduino to the "-" pin (Pin 1) on the TQ2-L-5V relay controlling the voicing - Connect COM and NO (no continuity) (Pins 7&8 or 3&4 on relay) to Sleeve & Ring on TRS output jack
+#define VOICE_TQRELAY_NEGATIVE_PIN 11     // Connect this pin (11) on Arduino to the "-" pin (Pin 1) on the TQ2-L-5V relay controlling the voicing - Connect COM and NO (no continuity) (Pins 7&8 or 3&4 on relay) to Sleeve & Ring on TRS output jack
 #define MIDI_RECEIVE_PIN 2                // Used for the Arduino to receive data from the MIDI-IN port
 #define MIDI_TRANSFER_PIN 3               // Used for the Arduino to transfer data to the MIDI-THRU port - CURRENTLY UNUSED
 #define LED_PIN_ONE 5                     // LED status pin
