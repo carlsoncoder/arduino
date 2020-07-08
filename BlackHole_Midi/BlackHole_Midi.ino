@@ -4,14 +4,14 @@
 #include <ReceiveOnlySoftwareSerial.h>  //http://gammon.com.au/Arduino/ReceiveOnlySoftwareSerial.zip
 
 // Possible MIDI CC commands that could be sent
-#define MIDI_CC_EFFECT              1           // CC to turn the effect On or Off - Sending a value of 127 enages the pedal, sending a value of 0 disengages the pedal
-#define MIDI_CC_BOOST               2           // CC to turn the boost On or Off - Sending a value of 127 enages the boost, sending a value of 0 disengages the boost
-#define MIDI_CC_NORMALPOT           3           // CC to change the value of the "Normal" pot - 0 is fully CCW (Min value), 127 is fully CW (Max value)
-#define MIDI_CC_BRITEPOT            4           // CC to change the value of the "Brite" pot - 0 is fully CCW (Min value), 127 is fully CW (Max value)
-#define MIDI_CC_VOLUMEPOT           5           // CC to change the value of the "Volume" pot - 0 is fully CCW (Min value), 127 is fully CW (Max value)
-#define MIDI_CC_BASSPOT             6           // CC to change the value of the "Bass" pot - 0 is fully CCW (Min value), 127 is fully CW (Max value)
-#define MIDI_CC_MIDPOT              7           // CC to change the value of the "Mid" pot - 0 is fully CCW (Min value), 127 is fully CW (Max value)
-#define MIDI_CC_TREBLEPOT           8           // CC to change the value of the "Treble" pot - 0 is fully CCW (Min value), 127 is fully CW (Max value)
+#define MIDI_CC_EFFECT              1           // CC number to turn the effect On or Off - Sending a value of 127 enages the pedal, sending a value of 0 disengages the pedal
+#define MIDI_CC_BOOST               2           // CC number to turn the boost On or Off - Sending a value of 127 enages the boost, sending a value of 0 disengages the boost
+#define MIDI_CC_NORMALPOT           3           // CC number to change the value of the "Normal" pot - 0 is fully CCW (Min value), 127 is fully CW (Max value)
+#define MIDI_CC_BRITEPOT            4           // CC number to change the value of the "Brite" pot - 0 is fully CCW (Min value), 127 is fully CW (Max value)
+#define MIDI_CC_VOLUMEPOT           5           // CC number to change the value of the "Volume" pot - 0 is fully CCW (Min value), 127 is fully CW (Max value)
+#define MIDI_CC_BASSPOT             6           // CC number to change the value of the "Bass" pot - 0 is fully CCW (Min value), 127 is fully CW (Max value)
+#define MIDI_CC_MIDPOT              7           // CC number to change the value of the "Mid" pot - 0 is fully CCW (Min value), 127 is fully CW (Max value)
+#define MIDI_CC_TREBLEPOT           8           // CC number to change the value of the "Treble" pot - 0 is fully CCW (Min value), 127 is fully CW (Max value)
 
 // MIDI constants
 #define MIDI_LISTEN_CHANNEL         7           // MIDI channel to listen on - We listen on MIDI Channel 8, but is zero-indexed so we look for 7.  MIDI controller should send commands on channel 8!
@@ -47,8 +47,7 @@
 #define PRESET_BYTE_LENGTH          25          // The amount of bytes used when saving a preset
 #define PRESET_LED_BLINK_TIME       150         // The time in milliseconds between blinking the Preset LED in "Preset Save" mode
 #define MIDI_CHECK_FREQUENCY_TIME   50          // The time in milliseconds to wait between checking the MIDI serial channel for new messages
-#define POT_CHECK_FREQUENCY_TIME    15          // The time in milliseconds to check to see if the analog pot values have changed
-#define ALLOWABLE_POT_VARIANCE      15          // The amount of variation in the analog pot values (from 0-1023) that we'll allow without considering it a "change" (due to minor discrepancies during analogRead operations)
+#define ALLOWABLE_POT_VARIANCE      10          // The amount of variation in the analog pot values (from 0-1023) that we'll allow without considering it a "change" (due to minor discrepancies during analogRead operations)
 #define DEBOUNCE_THRESHOLD          50          // The time in milliseconds for a button press to be considered valid (and not noise)
 #define LONG_PRESS_THRESHOLD        1500        // The time in milliseconds for a button press to be considered a "long press" (to go into "Preset Save" mode)
 #define PRESET_MODE_TIMEOUT         15000       // The amount of time in milliseconds we will wait in "Preset Save" mode before giving up
@@ -76,7 +75,6 @@ bool boostButtonLongPressActiveUnused = false;
 // timers
 unsigned long presetLedBlinkTimer;
 unsigned long midiReadTimer;
-unsigned long potReadTimer;
 unsigned long effectButtonTimer;
 unsigned long boostButtonTimer;
 
@@ -84,7 +82,8 @@ unsigned long boostButtonTimer;
 byte midiByte;
 byte midiChannel;
 byte midiCommand;
-byte midiProgramOrControlChangeByte;
+byte midiProgramChangeNumberByte;
+byte midiControlChangeNumberByte;
 byte midiControlChangeValueByte;
 
 // Setup the MIDI serial connection
@@ -92,6 +91,9 @@ ReceiveOnlySoftwareSerial midiSerial(MIDI_RECEIVE_PIN);
 
 // Setup function - initialize all pins, libraries, and state variables, as well as start up the MIDI serial connection
 void setup() {
+  // Seed EEPROM if we have to
+  seedEEPROMIfNeeded();
+  
   // Setup all LED pins as OUTPUT
   pinMode(EFFECT_LED_PIN, OUTPUT);
   pinMode(BOOST_LED_PIN, OUTPUT);
@@ -123,7 +125,6 @@ void setup() {
 
   // start our timers
   presetLedBlinkTimer = millis();
-  potReadTimer = millis();
   midiReadTimer = millis();
 
   // Some of the digipots are volatile, so they won't hold value after a restart of the controller
@@ -165,6 +166,8 @@ void readAnalogPotentiometers(bool forceSetDigitalPotentiometers) {
   bool midPotChanged = hasPotentiometerValueChanged(midPotReading, tempMidPotReading);
   bool treblePotChanged = hasPotentiometerValueChanged(treblePotReading, tempTreblePotReading);
 
+  bool anyChanges = normalPotChanged || britePotChanged || volumePotChanged || bassPotChanged || midPotChanged || treblePotChanged;
+
   // Now we're going to make calls to set the digital potentiometer values if any of them have changed, or if we're forcing a reset
   if (normalPotChanged || forceSetDigitalPotentiometers) {
     normalPotReading = tempNormalPotReading;
@@ -196,7 +199,9 @@ void readAnalogPotentiometers(bool forceSetDigitalPotentiometers) {
     setTrebleDigitalPotentiometer(treblePotReading);
   }
 
-  if (isPresetCurrentlyApplied && (normalPotChanged || britePotChanged || volumePotChanged || bassPotChanged || midPotChanged || treblePotChanged)) {
+  // FUTURE: JUSTIN: Consider in the future applying some logic where if you have a preset active, we don't care about the analog pots until you get within a certain percentage (5%?) of the preset value, 
+  // in order to prevent "jumping" from the preset value of the knob to the physical location when you go to move it
+  if (isPresetCurrentlyApplied && anyChanges) {
     // IMPORTANT NOTE:  If you have a preset currently applied/active, and you change one or more pots, that will "invalidate" the preset (the Preset active LED will turn off)
     // HOWEVER - Any potentiometers you have NOT changed, will still be set to their preset values, which won't really match up with the "physical location" of the analog potentiometers
     // We do this intentionally - so that if you have an active preset that you like, but just want to change one value, you can just change that one pot until you get it how you like, 
@@ -304,12 +309,12 @@ void writeToSpiPotentiometer(int spiCSSelectPin, uint16_t value) {
 // Writes a value to one of the SPI digi-pots (Mid and Treble pots use SPI)
   // PARAMETERS:
     // int address:  The I2C address to communicate with
-    // int value:  The value (between 0-255) to be sent to the potentiometer
+    // uin8_t value:  The value (between 0-255) to be sent to the potentiometer
     // int potRegister:  The value (either 0 or 1) representing which register to write to (these are dual-pot IC's)
   // REMARKS:
     // Adapted From: https://github.com/RobTillaart/Arduino/tree/master/libraries/AD524X
     // Coded to work with the AD524X Series - https://www.analog.com/media/en/technical-documentation/data-sheets/AD5241_5242.pdf
-void writeToI2CPotentiometer(int address, int value, int potRegister) {
+void writeToI2CPotentiometer(int address, uint8_t value, int potRegister) {
   Wire.beginTransmission(address);
   uint8_t cmd = (potRegister == 0) ? 0x00 : 0x80;  // RDAC1 = 0x00, RDAC2 = 0x80
   Wire.write(cmd);
@@ -476,20 +481,19 @@ void processMidiCommands() {
 
     // Only move forward if the channel is ours
     if (midiChannel == MIDI_LISTEN_CHANNEL) {
-
-      // read the next byte - it will either be our PC# or CC#
-      midiProgramOrControlChangeByte = midiSerial.read();
-      
       // process PC and CC commands differently
       if (midiCommand == MIDI_PROGRAM_CHANGE) {
-        if (midiProgramOrControlChangeByte == 99) {
+        // read the PC number byte
+        midiProgramChangeNumberByte - midiSerial.read();
+        
+        if (midiProgramChangeNumberByte == 99) {
           // PC#99 is a special case - we force reset all digi-pots to be whatever the analog pots are currently set to
           inPresetSaveMode = false;
           isPresetCurrentlyApplied = false;
           readAnalogPotentiometers(true);
           digitalWrite(PRESET_LED_PIN, LOW);
         }
-        else if (midiProgramOrControlChangeByte > 40 || midiProgramOrControlChangeByte == 0) {
+        else if (midiProgramChangeNumberByte > 40 || midiProgramChangeNumberByte == 0) {
           // Invalid - we only allow program changes of 1-40 (except 99 which is a special case above)
           inPresetSaveMode = false;
           isPresetCurrentlyApplied = false;
@@ -497,21 +501,24 @@ void processMidiCommands() {
         }
         else if (inPresetSaveMode) {
           inPresetSaveMode = false;
-          savePresetToEEPROM(midiProgramOrControlChangeByte);
+          savePresetToEEPROM(midiProgramChangeNumberByte);
           isPresetCurrentlyApplied = true;
           digitalWrite(PRESET_LED_PIN, HIGH);
         }
         else {
           isPresetCurrentlyApplied = true;
-          loadAndApplyPresetFromEEPROM(midiProgramOrControlChangeByte);
+          loadAndApplyPresetFromEEPROM(midiProgramChangeNumberByte);
           digitalWrite(PRESET_LED_PIN, HIGH);
         }
       }
       else if (midiCommand == MIDI_CONTROL_CHANGE) {
-        // for a CC command, we need to read the NEXT byte, which will be our value to pass for the CC#
+        // read the CC number byte
+        midiControlChangeNumberByte = midiSerial.read();
+        
+        // read the CC value byte
         midiControlChangeValueByte = midiSerial.read();
 
-        switch (midiProgramOrControlChangeByte) {
+        switch (midiControlChangeNumberByte) {
           case MIDI_CC_EFFECT: {
             // Sending a value of 127 enages the pedal, sending a value of 0 disengages the pedal
             if (midiControlChangeValueByte == 0) {
@@ -855,6 +862,17 @@ void blinkPresetLED() {
   }
 }
 
+void seedEEPROMIfNeeded() {
+  if (EEPROM.read(0) == 255) {
+    // if the first byte is 255, that means it's never been written to, and we can assume that the entire EEPROM is empty
+    // we allow 40 presets at 25 bytes each, so we'll just fill the first 1000 bytes of EEPROM with '0' (the character, not the number)
+    // This doesn't actually make "good" presets, just ensures they are all "valid" so we don't get index out of range exceptions or integer conversion errors
+    for (int i = 0; i < 1000; i++) {
+      EEPROM[i] = '0';
+    }
+  }
+}
+
 // Standard program loop
 void loop() {
   if (inPresetSaveMode) {
@@ -872,11 +890,8 @@ void loop() {
     // Check both the "Effect" and "Boost" footswitches, and use the analog switcher to enable/disable as needed
     checkFootswitchesState();
 
-    // check potentiometer values and if they have changed, send the changes to the digital potentiometers    
-    if ((millis() - potReadTimer) > POT_CHECK_FREQUENCY_TIME) {
-      readAnalogPotentiometers(false);
-      potReadTimer = millis();
-    }
+    // check potentiometer values and if they have changed, send the changes to the digital potentiometers  
+    readAnalogPotentiometers(false);
   }
 
   // always process MIDI commands
