@@ -18,8 +18,8 @@
 #define MIDI_PROGRAM_CHANGE         192         // The number that represents a MIDI PC (Program Change) command
 #define MIDI_CONTROL_CHANGE         176         // The number that represents a MIDI CC (Control Change) command
 
-// Arduino PIN definitions
-#define MIDI_RECEIVE_PIN            0           // Used for the Arduino to receive data from the MIDI-IN port
+// Atmega 328p PIN definitions
+#define MIDI_RECEIVE_PIN            0           // Used to receive data from the MIDI-IN port
 #define EFFECT_FOOTSWITCH_PIN       1           // Used to read the state of the footswitch for turning the effect on/off
 #define BOOST_FOOTSWITCH_PIN        2           // Used to read the state of the footswitch for enabling/disabling the BOOST
 #define MAX_SWITCH_EFFECT           3           // Used to switch the effect on/off - Goes to the IN1/IN2 Pin on MAX4701
@@ -38,20 +38,20 @@
 #define BASSPOT_ADSEL_PIN           16          // Used to set the address select pin on ONE of the 1M ohm Digi-pots (the one used for ONLY the Bass control). This should be hooked up to AD0 on the digi-pot IC
 
 // I2C addresses
-#define NORMAL_BRITE_POT_I2C_ADDR   44          // The I2C address to communicate with the digi-pot for the Normal/Brite settings (should have AD0 and AD1 pulled low (default/ground) so no pins needed from arduino to set address)
-#define BASS_POT_I2C_ADDR           45          // The I2C address to communicate with the digi-pot for Bass settings (should have AD0 pulled HIGH at program startup by an Arduino GPIO pin)
+#define NORMAL_BRITE_POT_I2C_ADDR   44          // The I2C address to communicate with the digi-pot for the Normal/Brite settings (should have AD0 and AD1 pulled low (default/ground) so no pins needed from Atmega to set address)
+#define BASS_POT_I2C_ADDR           45          // The I2C address to communicate with the digi-pot for Bass settings (should have AD0 pulled HIGH at program startup by an Atmega GPIO pin)
 #define VOLUME_POT_I2C_ADDR         42          // The I2C address to communicate with the digi-pot for Volume settings
 
 // Constants used elsewhere
-#define MIDI_WAIT_TIME              250         // Delay time to use when starting up the MIDI SoftwareSerial channel
+#define MIDI_WAIT_TIME              250         // Delay time to use when starting up the MIDI ReceiveOnlySoftwareSerial channel
 #define PRESET_BYTE_LENGTH          25          // The amount of bytes used when saving a preset
 #define PRESET_LED_BLINK_TIME       150         // The time in milliseconds between blinking the Preset LED in "Preset Save" mode
 #define MIDI_CHECK_FREQUENCY_TIME   50          // The time in milliseconds to wait between checking the MIDI serial channel for new messages
-#define ALLOWABLE_POT_VARIANCE      10          // The amount of variation in the analog pot values (from 0-1023) that we'll allow without considering it a "change" (due to minor discrepancies during analogRead operations)
+#define ALLOWABLE_POT_VARIANCE      10          // The amount of variation in the analog pot values (from 0-1023) that we'll allow without considering it a "change" (due to minor noise during analogRead operations)
 #define DEBOUNCE_THRESHOLD          50          // The time in milliseconds for a button press to be considered valid (and not noise)
 #define LONG_PRESS_THRESHOLD        1500        // The time in milliseconds for a button press to be considered a "long press" (to go into "Preset Save" mode)
-#define PRESET_MODE_TIMEOUT         15000       // The amount of time in milliseconds we will wait in "Preset Save" mode before giving up
-#define SPI_DELAY_TIME              50          // The time in milliseconds to delay operations after pulling an SPI CS pin HIGH
+#define PRESET_MODE_TIMEOUT         20000       // The amount of time in milliseconds we will wait in "Preset Save" mode before giving up
+#define SPI_DELAY_TIME              50          // The time in milliseconds to delay operations after pulling an SPI CS pin HIGH for SPI communications
 
 // state management
 int normalPotReading;
@@ -70,7 +70,7 @@ bool isPresetCurrentlyApplied = false;
 bool effectButtonActive = false;
 bool effectButtonLongPressActive = false;
 bool boostButtonActive = false;
-bool boostButtonLongPressActiveUnused = false;
+bool boostButtonLongPressActive = false;
 
 // timers
 unsigned long presetLedBlinkTimer;
@@ -127,12 +127,17 @@ void setup() {
   presetLedBlinkTimer = millis();
   midiReadTimer = millis();
 
-  // Some of the digipots are volatile, so they won't hold value after a restart of the controller
+  // Some of the digi-pots are volatile, so they won't hold value after a restart of the controller
   // read them all into the global variables and force them to set the digital pots as well on startup
   readAnalogPotentiometers(true);
 
   // always activate the effect on startup
+  // NOTE: We set this here if we're using a true-bypass looper.  If we AREN'T using a true-bypass looper, we should do the opposite and DE-activate the effect on startup!
   activateEffectFootswitch(true, false, false);
+
+  // make sure the boost is DISABLED on startup (the bypass/effect is already set with the call to activateEffectFootswitch(...) above)
+  digitalWrite(MAX_SWITCH_BOOST, LOW);
+  digitalWrite(BOOST_LED_PIN, LOW);
   
   // setup ReceiveOnlySoftwareSerial for MIDI control
   midiSerial.begin(31250);
@@ -267,7 +272,6 @@ void setBassDigitalPotentiometer(int bassReading) {
     // int midReading:  The value to be applied to the digital potentiometer
 void setMidDigitalPotentiometer(int midReading) {
     // Mid is a 1024 tap (0-1023) pot, so NO need to scale the current reading 
-    int midValue = midReading;
     writeToSpiPotentiometer(CS_SELECTPIN_25K, midReading);
 }
 
@@ -276,7 +280,6 @@ void setMidDigitalPotentiometer(int midReading) {
     // int trebleReading:  The value to be applied to the digital potentiometer
 void setTrebleDigitalPotentiometer(int trebleReading) {
     // Treble is a 1024 tap (0-1023) pot, so NO need to scale the current reading 
-    int trebleValue = trebleReading;
     writeToSpiPotentiometer(CS_SELECTPIN_250K, trebleReading);
 }
 
@@ -293,7 +296,7 @@ void writeToSpiPotentiometer(int spiCSSelectPin, uint16_t value) {
 
   uint8_t bytes[3];
 
-  // Since we're ONLY ever using ONE of the two pots on the SPI chips (for 25k and 250k ohm digipots), we can hard-code the cmd to "0xB0", and make sure we ONLY use Wiper 1 (RDAC1 register)
+  // Since we're ONLY ever using ONE of the two pots on the SPI chips (for 25k and 250k ohm digi-pots), we can hard-code the cmd to "0xB0", and make sure we ONLY use Wiper 1 (RDAC1 register)
   // If we did want to use the other (Wiper 2 - RDAC2 register), it should just use "0xB1" for the first byte
   bytes[0] = 0xB0;
   bytes[1] = value >> 8;
@@ -306,11 +309,11 @@ void writeToSpiPotentiometer(int spiCSSelectPin, uint16_t value) {
   digitalWrite(spiCSSelectPin, HIGH);
 }
 
-// Writes a value to one of the SPI digi-pots (Mid and Treble pots use SPI)
+// Writes a value to one of the I2C digi-pots (Normal/Brite share one dual-channel I2C pot, Volume has it's own I2C pot, and Bass has it's own I2C pot)
   // PARAMETERS:
     // int address:  The I2C address to communicate with
     // uin8_t value:  The value (between 0-255) to be sent to the potentiometer
-    // int potRegister:  The value (either 0 or 1) representing which register to write to (these are dual-pot IC's)
+    // int potRegister:  The value (either 0 or 1) representing which register to write to (these are dual channel digi-pots)
   // REMARKS:
     // Adapted From: https://github.com/RobTillaart/Arduino/tree/master/libraries/AD524X
     // Coded to work with the AD524X Series - https://www.analog.com/media/en/technical-documentation/data-sheets/AD5241_5242.pdf
@@ -327,7 +330,7 @@ void writeToI2CPotentiometer(int address, uint8_t value, int potRegister) {
     // bool isEffectsFootswitch:
         // If set to true, we process the effect/bypass footswitch
         // If set to false, we process the boost footswitch
-    // int switchPin:  The arduino pin tied to the footswitch
+    // int switchPin:  The Atmega pin tied to the footswitch
     // bool &buttonActive: Boolean passed by reference from the caller to note if the button is currently active or not
     // bool &buttonLongPressActive: Boolean passed by reference from the caller to note if the button is currently "long press" active or not
     // unsigned long &buttonTimer: Timer (long) passed by reference to see when the button was first pressed
@@ -348,13 +351,14 @@ void checkFootswitch(bool isEffectsFootswitch, int switchPin, bool &buttonActive
     // calculate the button press duration by subtracting the button time from the boot time
     buttonPressDuration = millis() - buttonTimer;
 
-    if (isEffectsFootswitch) {
-      // we only check for long-press on the effects footswitch button
-      // mark the button as long-pressed if the button press duration exceeds the long press threshold
-      if ((buttonPressDuration > LONG_PRESS_THRESHOLD) && (buttonLongPressActive == false)) {
+    // mark the button as long-pressed if the button press duration exceeds the long press threshold
+    if ((buttonPressDuration > LONG_PRESS_THRESHOLD) && (buttonLongPressActive == false)) {
+      buttonLongPressActive = true;
+
+      // We currently only process or do any action on long-press of the effect/bypass footswitch
+      if (isEffectsFootswitch) {
         inPresetSaveMode = true;
         inPresetSaveModeStartTime = millis();
-        buttonLongPressActive = true;
       }
     }
   }
@@ -384,7 +388,7 @@ void checkFootswitch(bool isEffectsFootswitch, int switchPin, bool &buttonActive
 // Check the state of both the Effect/Bypass and Boost footswitches
 void checkFootswitchesState() {
   checkFootswitch(true, EFFECT_FOOTSWITCH_PIN, effectButtonActive, effectButtonLongPressActive, effectButtonTimer, effectButtonPressDuration);
-  checkFootswitch(false, BOOST_FOOTSWITCH_PIN, boostButtonActive, boostButtonLongPressActiveUnused, boostButtonTimer, boostButtonPressDuration);
+  checkFootswitch(false, BOOST_FOOTSWITCH_PIN, boostButtonActive, boostButtonLongPressActive, boostButtonTimer, boostButtonPressDuration);
 }
 
 // Activates the effect footswitch by writing to the MAX4701 analog switch IC
@@ -642,7 +646,7 @@ void loadAndApplyPresetFromEEPROM(int programChangeNumber) {
     // So, for a PC of 1, we subtract 1 and get 0.  0 is our starting address, and we follow the example above
     // Then, for a PC of 3, we subtract 1 and get 2.  Multiply 2 times the length of a preset (25) to get 50, and 50 is our starting address
 
-  // EEPROM eventually we will get a string like this:  "0000102305120768102302561"
+  // EEPROM eventually we will get a string like this across the 25 byte values:  "0000102305120768102302561"
     // In this example, 0000 = normal pot, 1023 = brite pot, 0512 = volume pot, 0768 = bass pot, 1023 = mid pot, 0256 = treble pot, 1 = boost
     // Need to remove all leading zeroes from Normal/Brite/Volume/Bass/Mid/Treble and then convert to INT (done with the "convertCharArrayToInt(...)" function)
     // Need to convert the boost value (0 or 1) to a bool
@@ -713,7 +717,6 @@ void savePresetToEEPROM(int programChangeNumber) {
   int pc = programChangeNumber - 1;
   int startIndex = pc * PRESET_BYTE_LENGTH;
 
-  // Normal Pot
   writePotValueToEEPROM(normalPotReading, startIndex);
   writePotValueToEEPROM(britePotReading, startIndex + 4);
   writePotValueToEEPROM(volumePotReading, startIndex + 8);
