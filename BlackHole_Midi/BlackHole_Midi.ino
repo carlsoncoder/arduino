@@ -14,7 +14,7 @@
 #define MIDI_CC_TREBLEPOT           8           // CC number to change the value of the "Treble" pot - 0 is fully CCW (Min value), 127 is fully CW (Max value)
 
 // MIDI constants
-#define MIDI_LISTEN_CHANNEL         7           // MIDI channel to listen on - We listen on MIDI Channel 8, but is zero-indexed so we look for 7.  MIDI controller should send commands on channel 8!
+#define DEFAULT_MIDI_CHANNEL        8           // By default, we listen on MIDI channel 8, unless otherwise specified
 #define MIDI_PROGRAM_CHANGE         192         // The number that represents a MIDI PC (Program Change) command
 #define MIDI_CONTROL_CHANGE         176         // The number that represents a MIDI CC (Control Change) command
 
@@ -44,7 +44,7 @@
 
 // Constants used elsewhere
 #define MIDI_WAIT_TIME              250         // Delay time to use when starting up the MIDI ReceiveOnlySoftwareSerial channel
-#define PRESET_BYTE_LENGTH          25          // The amount of bytes used when saving a preset
+#define PRESET_BYTE_LENGTH          7          // The amount of bytes used when saving a preset
 #define PRESET_LED_BLINK_TIME       150         // The time in milliseconds between blinking the Preset LED in "Preset Save" mode
 #define MIDI_CHECK_FREQUENCY_TIME   50          // The time in milliseconds to wait between checking the MIDI serial channel for new messages
 #define ALLOWABLE_POT_VARIANCE      10          // The amount of variation in the analog pot values (from 0-1023) that we'll allow without considering it a "change" (due to minor noise during analogRead operations)
@@ -54,6 +54,7 @@
 #define SPI_DELAY_TIME              50          // The time in milliseconds to delay operations after pulling an SPI CS pin HIGH for SPI communications
 
 // state management
+byte expectedMidiChannel; // set in "seedEEPROMIfNeeded(...)" - Note that this value is actually 1 less than the MIDI channel we send commands on, since the MIDI channel byte is 0-15, not 1-16 like the controller itself would send
 int normalPotReading;
 int britePotReading;
 int volumePotReading;
@@ -91,7 +92,7 @@ ReceiveOnlySoftwareSerial midiSerial(MIDI_RECEIVE_PIN);
 
 // Setup function - initialize all pins, libraries, and state variables, as well as start up the MIDI serial connection
 void setup() {
-  // Seed EEPROM if we have to
+  // Seed EEPROM if we have to - this also sets the MIDI channel to listen for
   seedEEPROMIfNeeded();
   
   // Setup all LED pins as OUTPUT
@@ -484,21 +485,24 @@ void processMidiCommands() {
     midiCommand = midiByte & B11110000;
 
     // Only move forward if the channel is ours
-    if (midiChannel == MIDI_LISTEN_CHANNEL) {
+    if (midiChannel == expectedMidiChannel) {
+      
       // process PC and CC commands differently
       if (midiCommand == MIDI_PROGRAM_CHANGE) {
+        
         // read the PC number byte
         midiProgramChangeNumberByte - midiSerial.read();
         
-        if (midiProgramChangeNumberByte == 99) {
-          // PC#99 is a special case - we force reset all digi-pots to be whatever the analog pots are currently set to
+        if (midiProgramChangeNumberByte == 0) {
+          // PC#0 is a special case - we force reset all digi-pots to be whatever the analog pots are currently set to
+          // A user cannot save anything to PC#0, so technically they only have 127 presets to save, not 128!
           inPresetSaveMode = false;
           isPresetCurrentlyApplied = false;
           readAnalogPotentiometers(true);
           digitalWrite(PRESET_LED_PIN, LOW);
         }
-        else if (midiProgramChangeNumberByte > 40 || midiProgramChangeNumberByte == 0) {
-          // Invalid - we only allow program changes of 1-40 (except 99 which is a special case above)
+        else if (midiProgramChangeNumberByte > 127) {
+          // Invalid - this shouldn't be possible, since you can only send a preset up to 127 via MIDI
           inPresetSaveMode = false;
           isPresetCurrentlyApplied = false;
           digitalWrite(PRESET_LED_PIN, LOW);
@@ -631,203 +635,89 @@ int mapMidiCCValueToLogPotValue(int midiCCValue) {
   // PARAMETERS:
     // int programChangeNumber:  The MIDI PC value that was passed in by the MIDI controller
 void loadAndApplyPresetFromEEPROM(int programChangeNumber) {
+  
   // We need to subtract 1 from the PC number to find our starting index in EEPROM
   int pc = programChangeNumber - 1;
 
-  // From the starting byte [0]
-    // [0-3] = Four digits representing a number from 0-1023 for the Normal pot
-    // [4-7] = Four digits representing a number from 0-1023 for the Brite pot
-    // [8-11] = Four digits representing a number from 0-1023 for the Volume pot
-    // [12-15] = Four digits representing a number from 0-1023 for the Bass pot  
-    // [16-19] = Four digits representing a number from 0-1023 for the Mid pot
-    // [20-23] = Four digits representing a number from 0-1023 for the Treble pot
-    // [24] = 1 digit (0 or 1) representing the boost value
+  // The VERY FIRST byte [0] in EEPROM represents our MIDI channel - so we have to skip that one!
+  // From the starting byte [1]
+    // [1] = A byte (value between 0-255) representing the value for our Normal pot
+    // [2] = A byte (value between 0-255) representing the value for our Brite pot
+    // [3] = A byte (value between 0-255) representing the value for our Volume pot
+    // [4] = A byte (value between 0-255) representing the value for our Bass pot  
+    // [5] = A byte (value between 0-255) representing the value for our Mid pot
+    // [6] = A byte (value between 0-255) representing the value for our Treble pot
+    // [7] = A byte (value between 0-255) representing the boost value - 0 = boost disabled, anything else = boost engaged
 
-    // So, for a PC of 1, we subtract 1 and get 0.  0 is our starting address, and we follow the example above
-    // Then, for a PC of 3, we subtract 1 and get 2.  Multiply 2 times the length of a preset (25) to get 50, and 50 is our starting address
+  // So, for a PC of 1, we subtract 1 and get 0, then add 1 to skip the MIDI channel EEPROM byte.  1 is our starting address, and we follow the example above
+  // Then, for a PC of 3, we subtract 1 and get 2, then add 1 to skip the MIDI channel EEPROM byte.  Multiply 2 times the length of a preset (7) to get 14, then add 1, and 15 is our starting address
 
-  // EEPROM eventually we will get a string like this across the 25 byte values:  "0000102305120768102302561"
-    // In this example, 0000 = normal pot, 1023 = brite pot, 0512 = volume pot, 0768 = bass pot, 1023 = mid pot, 0256 = treble pot, 1 = boost
-    // Need to remove all leading zeroes from Normal/Brite/Volume/Bass/Mid/Treble and then convert to INT (done with the "convertCharArrayToInt(...)" function)
-    // Need to convert the boost value (0 or 1) to a bool
+  int startIndex = (pc * PRESET_BYTE_LENGTH) + 1;
 
-  int startIndex = pc * PRESET_BYTE_LENGTH;
+  int normal = EEPROM[startIndex];
+  int brite = EEPROM[startIndex + 1];
+  int volume = EEPROM[startIndex + 2];
+  int bass = EEPROM[startIndex + 3];
+  int mid = EEPROM[startIndex + 4];
+  int treble = EEPROM[startIndex + 5];
+  int boost = EEPROM[startIndex + 6];
 
-  char rawNormal[4];
-  rawNormal[0] = EEPROM[startIndex];
-  rawNormal[1] = EEPROM[startIndex + 1];
-  rawNormal[2] = EEPROM[startIndex + 2];
-  rawNormal[3] = EEPROM[startIndex + 3];
+  // the "setPotentiometer" methods expect a value from 0-1023, not 0-255, so we have to scale our values before sending them in
+  normal = map(normal, 0, 255, 0, 1023);
+  brite = map(brite, 0, 255, 0, 1023);
+  volume = map(volume, 0, 255, 0, 1023);
+  bass = map(bass, 0, 255, 0, 1023);
+  mid = map(mid, 0, 255, 0, 1023);
+  treble = map(treble, 0, 255, 0, 1023);
 
-  char rawBrite[4];
-  rawBrite[0] = EEPROM[startIndex + 4];
-  rawBrite[1] = EEPROM[startIndex + 5];
-  rawBrite[2] = EEPROM[startIndex + 6];
-  rawBrite[3] = EEPROM[startIndex + 7];
+  // set the potentiometer values
+  setNormalDigitalPotentiometer(normal);
+  setBriteDigitalPotentiometer(brite);
+  setVolumeDigitalPotentiometer(volume);
+  setBassDigitalPotentiometer(bass);
+  setMidDigitalPotentiometer(mid);
+  setTrebleDigitalPotentiometer(treble);
 
-  char rawVolume[4];
-  rawVolume[0] = EEPROM[startIndex + 8];
-  rawVolume[1] = EEPROM[startIndex + 9];
-  rawVolume[2] = EEPROM[startIndex + 10];
-  rawVolume[3] = EEPROM[startIndex + 11];
+  // determine boost value
+  bool boostEnabled = boost > 0;
 
-  char rawBass[4];
-  rawBass[0] = EEPROM[startIndex + 12];
-  rawBass[1] = EEPROM[startIndex + 13];
-  rawBass[2] = EEPROM[startIndex + 14];
-  rawBass[3] = EEPROM[startIndex + 15];
-
-  char rawMid[4];
-  rawMid[0] = EEPROM[startIndex + 16];
-  rawMid[1] = EEPROM[startIndex + 17];
-  rawMid[2] = EEPROM[startIndex + 18];
-  rawMid[3] = EEPROM[startIndex + 19];
-  
-  char rawTreble[4];
-  rawTreble[0] = EEPROM[startIndex + 20];
-  rawTreble[1] = EEPROM[startIndex + 21];
-  rawTreble[2] = EEPROM[startIndex + 22];
-  rawTreble[3] = EEPROM[startIndex + 23];
-
-  char rawBoost = EEPROM[startIndex + 24];
-  
-  int normalValue = convertCharArrayToInt(rawNormal);
-  int briteValue = convertCharArrayToInt(rawBrite);
-  int volumeValue = convertCharArrayToInt(rawVolume);
-  int bassValue = convertCharArrayToInt(rawBass);
-  int midValue = convertCharArrayToInt(rawMid);
-  int trebleValue = convertCharArrayToInt(rawTreble);
-  bool boost = atoi(rawBoost) == 1;
-
-  setNormalDigitalPotentiometer(normalValue);
-  setBriteDigitalPotentiometer(briteValue);
-  setVolumeDigitalPotentiometer(volumeValue);
-  setBassDigitalPotentiometer(bassValue);
-  setMidDigitalPotentiometer(midValue);
-  setTrebleDigitalPotentiometer(trebleValue);
-  
+  // activate the footswitches
   activateEffectFootswitch(true, false, false);
-  activateBoostFootswitch(true, boost);
+  activateBoostFootswitch(true, boostEnabled);
 }
 
 // Saves the current potentiomter settings and boost switch settings to EEPROM
   // PARAMETERS:
     // int programChangeNumber:  The preset number to be saved (this is what you would then pass in from your MIDI controller to recall it)
 void savePresetToEEPROM(int programChangeNumber) {
+  
+  // We need to subtract 1 from the PC number to find our starting index in EEPROM
   int pc = programChangeNumber - 1;
-  int startIndex = pc * PRESET_BYTE_LENGTH;
 
-  writePotValueToEEPROM(normalPotReading, startIndex);
-  writePotValueToEEPROM(britePotReading, startIndex + 4);
-  writePotValueToEEPROM(volumePotReading, startIndex + 8);
-  writePotValueToEEPROM(bassPotReading, startIndex + 12);
-  writePotValueToEEPROM(midPotReading, startIndex + 16);
-  writePotValueToEEPROM(treblePotReading, startIndex + 20);
+  // Add 1 so we don't write over the MIDI channel byte in EEPROM
+  int startIndex = (pc * PRESET_BYTE_LENGTH) + 1;
 
-  char boostVal = boostEnabled ? '1' : '0';
-  EEPROM[startIndex + 24] = boostVal;
+  // Our pot readings are int (2 bytes), but we want to store in EEPROM as 1 byte, so we have to scale from 0-1023 to 0-255
+  int normalValue = map(normalPotReading, 0, 1023, 0, 255);
+  int briteValue = map(britePotReading, 0, 1023, 0, 255);
+  int volumeValue = map(volumePotReading, 0, 1023, 0, 255);
+  int bassValue = map(bassPotReading, 0, 1023, 0, 255);
+  int midValue = map(midPotReading, 0, 1023, 0, 255);
+  int trebleValue = map(treblePotReading, 0, 1023, 0, 255);
+
+  // figure out boost
+  int boostValue = boostEnabled ? 1 : 0;
+
+  // write all values to EEPROM
+  EEPROM[startIndex] = normalValue;
+  EEPROM[startIndex + 1] = briteValue;
+  EEPROM[startIndex + 2] = volumeValue;
+  EEPROM[startIndex + 3] = bassValue;
+  EEPROM[startIndex + 4] = midValue;
+  EEPROM[startIndex + 5] = trebleValue;
+  EEPROM[startIndex + 6] = boostValue;
   
   blinkMainLedsAfterSuccessfulPresetSave();
-}
-
-// Takes a potentiometer value (0-1023) and writes it in an appropriate manner to EEPROM
-  // PARAMETERS:
-    // int potValue:  The potentiometer value (0-1023) to be saved
-    // int startingAddress:  The address in EEPROM to start writing at
-void writePotValueToEEPROM(int potValue, int startingAddress) {
-  String potValueString = String(potValue);
-  
-  if (potValue == 0) {
-    EEPROM[startingAddress] = '0';
-    EEPROM[startingAddress + 1] = '0';
-    EEPROM[startingAddress + 2] = '0';
-    EEPROM[startingAddress + 3] = '0';
-  }
-  else if (potValue < 10) {
-    EEPROM[startingAddress] = '0';
-    EEPROM[startingAddress + 1] = '0';
-    EEPROM[startingAddress + 2] = '0';
-    EEPROM[startingAddress + 3] = potValueString[0];    
-  }
-  else if (potValue < 100) {
-    EEPROM[startingAddress] = '0';
-    EEPROM[startingAddress + 1] = '0';
-    EEPROM[startingAddress + 2] = potValueString[0];
-    EEPROM[startingAddress + 3] = potValueString[1];   
-  }
-  else if (potValue < 1000) {
-    EEPROM[startingAddress] = '0';
-    EEPROM[startingAddress + 1] = potValueString[0];
-    EEPROM[startingAddress + 2] = potValueString[1];
-    EEPROM[startingAddress + 3] = potValueString[2];
-  }
-  else {
-    EEPROM[startingAddress] = potValueString[0];
-    EEPROM[startingAddress + 1] = potValueString[1];
-    EEPROM[startingAddress + 2] = potValueString[2];
-    EEPROM[startingAddress + 3] = potValueString[3];    
-  } 
-}
-
-// Converts a char array into an integer
-  // PARAMETERS:
-    // char *arrayValue: A pointer to the char[] to be converted
-  // RETURNS:
-    // A mapped integer value between 0-1023 that can be used to set the potentiometer value
-int convertCharArrayToInt(char *arrayValue) {
-  char tempBuffer[5];
-
-  // find first instance of non-zero char
-  bool nonZeroFound = false;
-  int tempBufferIndex = 0;
-  for (int i = 0; i < 4; i++) {
-    char val = arrayValue[i];
-    if (val == '0' && !nonZeroFound) {
-      continue;
-    }
-    else if (val != '0' && !nonZeroFound) {
-      nonZeroFound = true;
-      tempBuffer[tempBufferIndex] = val;
-      tempBufferIndex++;
-    }
-    else {
-      tempBuffer[tempBufferIndex] = val;
-      tempBufferIndex++;      
-    }
-  }
-
-  if (!nonZeroFound) {
-    return 0;
-  }
-  else if (tempBufferIndex == 1) {
-    // only want the first value
-    char modBuffer[2];
-    modBuffer[0] = tempBuffer[0];
-    modBuffer[1] =  '\0';
-    return atoi(modBuffer);
-  }
-  else if (tempBufferIndex == 2) {
-    // only want the first and second value
-    char modBuffer[3];
-    modBuffer[0] = tempBuffer[0];
-    modBuffer[1] = tempBuffer[1];
-    modBuffer[2] =  '\0';
-    return atoi(modBuffer);
-  }
-  else if (tempBufferIndex == 3) {
-    // only want the first, second, and third value
-    char modBuffer[4];
-    modBuffer[0] = tempBuffer[0];
-    modBuffer[1] = tempBuffer[1];
-    modBuffer[2] = tempBuffer[2];
-    modBuffer[3] =  '\0';
-    return atoi(modBuffer);
-  }
-  else if (tempBufferIndex == 4) {
-    // used all four, just set the null-terminator and convert
-    tempBuffer[4] = '\0';
-    return atoi(tempBuffer);
-  }
 }
 
 // Blinks both the "Effect/Bypass" and "Boost" LED's several times after a preset is successfully saved
@@ -866,14 +756,35 @@ void blinkPresetLED() {
 }
 
 void seedEEPROMIfNeeded() {
-  if (EEPROM.read(0) == 255) {
-    // if the first byte is 255, that means it's never been written to, and we can assume that the entire EEPROM is empty
-    // we allow 40 presets at 25 bytes each, so we'll just fill the first 1000 bytes of EEPROM with '0' (the character, not the number)
-    // This doesn't actually make "good" presets, just ensures they are all "valid" so we don't get index out of range exceptions or integer conversion errors
-    for (int i = 0; i < 1000; i++) {
-      EEPROM[i] = '0';
+  byte savedMidiChannel = EEPROM.read(0);
+  byte midiChannelToSet;
+  if (savedMidiChannel == 255) {
+    // If the first byte is 255, that means it's never been written to, and we can assume that the entire EEPROM is empty
+    // First set the default MIDI channel
+    EEPROM[0] = DEFAULT_MIDI_CHANNEL;
+    midiChannelToSet = DEFAULT_MIDI_CHANNEL;
+    
+    // Now, set every other value in EEPROM to 0 - by default the EEPROM will return 255 if never written to, 
+    // which would actually be MAX value on the potentiometers!  So if you accidentally recalled a preset that you 
+    // had never actually saved, it would MAX ALL VALUES!  And we don't want that!
+    for (int i = i; i < 1024; i++) {
+      EEPROM[i] = 0;
     }
   }
+  else if (savedMidiChannel <= 0 || savedMidiChannel >= 17) {
+    // Anything less than or equal to 0, or greater than or equal to 17, is an invalid MIDI channel (MIDI channel is between 1-16)
+    // Reset it to the default MIDI channel, but assume all other EEPROM values are valid
+    EEPROM[0] = DEFAULT_MIDI_CHANNEL;
+    midiChannelToSet = DEFAULT_MIDI_CHANNEL;
+  }
+  else {
+    midiChannelToSet = savedMidiChannel;
+  }
+  
+  // At this point, we know whatever is in "midiChannelToSet" is our valid MIDI channel, either because we fixed it above, or it was already set prior
+  // Subtract 1 from it (MIDI Controller sends in 1-16, but the byte is zero-indexed so will be 0-15),
+  // and set our local variable so we know what to listen for
+  expectedMidiChannel = midiChannelToSet - 1;
 }
 
 // Standard program loop
