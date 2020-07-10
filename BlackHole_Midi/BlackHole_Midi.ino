@@ -45,12 +45,12 @@
 // Constants used elsewhere
 #define MIDI_WAIT_TIME              250         // Delay time to use when starting up the MIDI ReceiveOnlySoftwareSerial channel
 #define PRESET_BYTE_LENGTH          7          // The amount of bytes used when saving a preset
-#define PRESET_LED_BLINK_TIME       150         // The time in milliseconds between blinking the Preset LED in "Preset Save" mode
+#define PRESET_LED_BLINK_TIME       250         // The time in milliseconds between blinking the Preset LED in "Preset Save" mode
 #define MIDI_CHECK_FREQUENCY_TIME   50          // The time in milliseconds to wait between checking the MIDI serial channel for new messages
 #define ALLOWABLE_POT_VARIANCE      10          // The amount of variation in the analog pot values (from 0-1023) that we'll allow without considering it a "change" (due to minor noise during analogRead operations)
 #define DEBOUNCE_THRESHOLD          50          // The time in milliseconds for a button press to be considered valid (and not noise)
 #define LONG_PRESS_THRESHOLD        1500        // The time in milliseconds for a button press to be considered a "long press" (to go into "Preset Save" mode)
-#define PRESET_MODE_TIMEOUT         20000       // The amount of time in milliseconds we will wait in "Preset Save" mode before giving up
+#define PRESET_MODE_TIMEOUT         30000       // The amount of time in milliseconds we will wait in "Preset Save" mode before giving up
 #define SPI_DELAY_TIME              50          // The time in milliseconds to delay operations after pulling an SPI CS pin HIGH for SPI communications
 
 // state management
@@ -100,9 +100,9 @@ void setup() {
   pinMode(BOOST_LED_PIN, OUTPUT);
   pinMode(PRESET_LED_PIN, OUTPUT);
 
-  // Setup our footswitch pins as INPUT
-  pinMode(EFFECT_FOOTSWITCH_PIN, INPUT);
-  pinMode(BOOST_FOOTSWITCH_PIN, INPUT);
+  // Setup our footswitch pins as INPUT_PULLUP
+  pinMode(EFFECT_FOOTSWITCH_PIN, INPUT_PULLUP);
+  pinMode(BOOST_FOOTSWITCH_PIN, INPUT_PULLUP);
 
   // Setup our pins on the MAX4701 switch as OUTPUT
   pinMode(MAX_SWITCH_EFFECT, OUTPUT);
@@ -139,6 +139,9 @@ void setup() {
   // make sure the boost is DISABLED on startup (the bypass/effect is already set with the call to activateEffectFootswitch(...) above)
   digitalWrite(MAX_SWITCH_BOOST, LOW);
   digitalWrite(BOOST_LED_PIN, LOW);
+
+  // make sure the preset LED starts off
+  digitalWrite(PRESET_LED_PIN, LOW);
   
   // setup ReceiveOnlySoftwareSerial for MIDI control
   midiSerial.begin(31250);
@@ -339,8 +342,6 @@ void writeToI2CPotentiometer(int address, uint8_t value, int potRegister) {
   // REMARKS:
      // Adapted From: https://bloggymcblogface.blog/example-arduino-code-for-debouncing-and-long-pressing-buttons/
 void checkFootswitch(bool isEffectsFootswitch, int switchPin, bool &buttonActive, bool &buttonLongPressActive, unsigned long &buttonTimer, unsigned long &buttonPressDuration) {
-
-  // TODO: JUSTIN: VERIFY IF THIS SHOULD BE HIGH OR LOW!
   // if the button pin reads LOW, the button is pressed (negative/ground switch)
   if (digitalRead(switchPin) == LOW) {
     // mark the button as active, and start the timer
