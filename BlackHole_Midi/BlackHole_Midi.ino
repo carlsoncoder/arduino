@@ -870,3 +870,10 @@ void loop() {
   // always process MIDI commands
   processMidiCommands();
 }
+
+// Logic remaining to test on Metro (test on larger Metro device before Atmega328p device)
+  // The Rest - FILL THIS IN
+
+// Logic already tested on Metro
+  // Footswitch reading/behavior
+  // LED Blinking/Behavior
