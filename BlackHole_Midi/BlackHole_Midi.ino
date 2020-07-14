@@ -18,24 +18,48 @@
 #define MIDI_PROGRAM_CHANGE         192         // The number that represents a MIDI PC (Program Change) command
 #define MIDI_CONTROL_CHANGE         176         // The number that represents a MIDI CC (Control Change) command
 
-// Atmega 328p PIN definitions
-#define MIDI_RECEIVE_PIN            0           // Used to receive data from the MIDI-IN port
-#define EFFECT_FOOTSWITCH_PIN       1           // Used to read the state of the footswitch for turning the effect on/off
-#define BOOST_FOOTSWITCH_PIN        2           // Used to read the state of the footswitch for enabling/disabling the BOOST
-#define MAX_SWITCH_EFFECT           3           // Used to switch the effect on/off - Goes to the IN1/IN2 Pin on MAX4701
-#define MAX_SWITCH_BOOST            4           // Used to switch the boost on/off - Goes to the IN3/IN4 Pin on MAX4701
-#define ANALOG_POT_NORMAL           5           // Used to read in the value of the analog potentiometer for the "Normal" pot
-#define ANALOG_POT_BRITE            6           // Used to read in the value of the analog potentiometer for the "Brite" pot
-#define ANALOG_POT_VOLUME           7           // Used to read in the value of the analog potentiometer for the "Volume" pot
-#define ANALOG_POT_BASS             8           // Used to read in the value of the analog potentiometer for the "Bass" pot
-#define ANALOG_POT_MID              9           // Used to read in the value of the analog potentiometer for the "Mid" pot
-#define ANALOG_POT_TREBLE           10          // Used to read in the value of the analog potentiometer for the "Treble" pot
-#define EFFECT_LED_PIN              11          // Used to indicate if the effect is on or off
-#define BOOST_LED_PIN               12          // Used to indicate if the boost is enabled or not
-#define PRESET_LED_PIN              13          // Used to indicate the state of the currently selected preset, if any
-#define CS_SELECTPIN_25K            14          // Used as the slave select pin for the 25k ohm Digi-pot connected over SPI (Mids)
-#define CS_SELECTPIN_250K           15          // Used as the slave select pin for the 250k ohm Digi-pot connected over SPI (Treble)
-#define BASSPOT_ADSEL_PIN           16          // Used to set the address select pin on ONE of the 1M ohm Digi-pots (the one used for ONLY the Bass control). This should be hooked up to AD0 on the digi-pot IC
+// Potentiometer Definitions for Multiplexer
+#define NORMAL_POT                  1         // Must be wired to channel 0 on the mux
+#define BRITE_POT                   2         // Must be wired to channel 1 on the mux
+#define VOLUME_POT                  3         // Must be wired to channel 2 on the mux
+#define BASS_POT                    4         // Must be wired to channel 3 on the mux
+#define MID_POT                     5         // Must be wired to channel 4 on the mux
+#define TREBLE_POT                  6         // Must be wired to channel 5 on the mux
+
+// Atmega 328p PIN definitions (all definitions for the TQFP-32 package)
+// Note that we do not use all of these in code, but I've included them here for wiring reference
+#define MAX_SWITCH_EFFECT           1           // Used to switch the effect on/off - Goes to the IN1/IN2 Pin on MAX4701
+#define MAX_SWITCH_BOOST            2           // Used to switch the boost on/off - Goes to the IN3/IN4 Pin on MAX4701
+#define GND_ONE                     3           // The first GND pin on the Atmega328p -- NOT USED IN CODE
+#define VCC_ONE                     4           // The first VCC pin on the Atmega328p -- NOT USED IN CODE
+#define GND_TWO                     5           // The second GND pin on the Atmega328p -- NOT USED IN CODE
+#define VCC_TWO                     6           // The second VCC pin on the Atmega328p -- NOT USED IN CODE
+#define CRYSTAL_IN                  7           // The input pin for the 16 Mhz external crystal -- NOT USED IN CODE
+#define CRYSTAL_IN                  8           // The output pin for the 16 Mhz external crystal -- NOT USED IN CODE
+#define BASSPOT_ADSEL_PIN           9           // Used to set the address select pin on ONE of the 1M ohm Digi-pots (the one used for ONLY the Bass control). This should be hooked up to AD0 on the digi-pot IC
+#define CS_SELECTPIN_25K            10          // Used as the slave select pin for the 25k ohm Digi-pot connected over SPI (Mids)
+#define CS_SELECTPIN_250K           11          // Used as the slave select pin for the 250k ohm Digi-pot connected over SPI (Treble)
+#define EFFECT_FOOTSWITCH_PIN       12          // Used to read the state of the footswitch for turning the effect on/off
+#define BOOST_FOOTSWITCH_PIN        13          // Used to read the state of the footswitch for enabling/disabling the BOOST
+#define MIDI_RECEIVE_PIN            14          // Used to receive data from the MIDI-IN port
+#define SPI_MOSI                    15          // The SPI "Master Out, Slave In" (MOSI) pin on the Atmega328p -- NOT USED IN CODE
+#define SPI_MISO                    16          // The SPI "Master In, Slave Out" (MISO) pin on the Atmega328p -- NOT USED IN CODE
+#define SPI_SCK                     17          // The SPI Clock (SCK) pin on the Atmega328p -- NOT USED IN CODE
+#define AVCC                        18          // The AVCC (Analog voltage input) pin on the Atmega328p -- NOT USED IN CODE
+#define ANALOG_MULTIPLEX_PIN        19          // The main analog input/output pin for the 4051 multiplexer
+#define AREF                        20          // The AREF (Analog reference) pin on the Atmega328p -- NOT USED IN CODE
+#define GND_THREE                   21          // The third GND pin (Likely AGND) on the Atmega328p -- NOT USED IN CODE
+#define MUX_SELECT_PIN_A            22          // The first address select pin for the 4051 multiplexer - "A" pin
+#define MUX_SELECT_PIN_B            23          // The second address select pin for the 4051 multiplexer - "B" pin
+#define MUX_SELECT_PIN_C            24          // The third address select pin for the 4051 multiplexer - "C" pin
+#define PRESET_LED_PIN              25          // Used to indicate the state of the currently selected preset, if any
+#define BOOST_LED_PIN               26          // Used to indicate if the boost is enabled or not
+#define I2C_SDA                     27          // The I2C "Data Line" (SDA) pin on the Atmega328p -- NOT USED IN CODE
+#define I2C_SCL                     28          // The I2C "Clock Line" (SCL) pin on the Atmega328p -- NOT USED IN CODE
+#define RESET_PIN                   29          // The Reset pin on the Atmega328p -- NOT USED IN CODE
+#define SERIAL_TX_PIN               30          // The serial transmit (TX) pin on the Atmega328p -- NOT USED IN CODE
+#define SERIAL_RX_PIN               31          // The serial receive (RX) pin on the Atmega328p -- NOT USED IN CODE
+#define EFFECT_LED_PIN              32          // Used to indicate if the effect is on or off
 
 // I2C addresses
 #define NORMAL_BRITE_POT_I2C_ADDR   44          // The I2C address to communicate with the digi-pot for the Normal/Brite settings (should have AD0 and AD1 pulled low (default/ground) so no pins needed from Atmega to set address)
@@ -46,7 +70,6 @@
 #define MIDI_WAIT_TIME              250         // Delay time to use when starting up the MIDI ReceiveOnlySoftwareSerial channel
 #define PRESET_BYTE_LENGTH          7          // The amount of bytes used when saving a preset
 #define PRESET_LED_BLINK_TIME       250         // The time in milliseconds between blinking the Preset LED in "Preset Save" mode
-#define MIDI_CHECK_FREQUENCY_TIME   50          // The time in milliseconds to wait between checking the MIDI serial channel for new messages
 #define ALLOWABLE_POT_VARIANCE      10          // The amount of variation in the analog pot values (from 0-1023) that we'll allow without considering it a "change" (due to minor noise during analogRead operations)
 #define DEBOUNCE_THRESHOLD          50          // The time in milliseconds for a button press to be considered valid (and not noise)
 #define LONG_PRESS_THRESHOLD        1500        // The time in milliseconds for a button press to be considered a "long press" (to go into "Preset Save" mode)
@@ -75,9 +98,14 @@ bool boostButtonLongPressActive = false;
 
 // timers
 unsigned long presetLedBlinkTimer;
-unsigned long midiReadTimer;
 unsigned long effectButtonTimer;
 unsigned long boostButtonTimer;
+
+// multiplexer pin state
+uint8_t pin_A_value = 0;
+uint8_t pin_B_value = 0;
+uint8_t pin_C_value = 0;
+int lastReadPotValue = 0;
 
 // Incoming MIDI values
 byte midiByte;
@@ -108,6 +136,12 @@ void setup() {
   pinMode(MAX_SWITCH_EFFECT, OUTPUT);
   pinMode(MAX_SWITCH_BOOST, OUTPUT);
 
+  // Set our multiplexer pins appropriately (the main pin is INPUT and the address select pins are OUTPUT)
+  pinMode(ANALOG_MULTIPLEX_PIN, INPUT);
+  pinMode(MUX_SELECT_PIN_A, OUTPUT);
+  pinMode(MUX_SELECT_PIN_B, OUTPUT);
+  pinMode(MUX_SELECT_PIN_C, OUTPUT);
+
   // Setup our CS select pins (for SPI) and our I2C Address Select pin for the Bass digi-pot to OUTPUT
   pinMode(CS_SELECTPIN_25K, OUTPUT);
   pinMode(CS_SELECTPIN_250K, OUTPUT);
@@ -126,7 +160,6 @@ void setup() {
 
   // start our timers
   presetLedBlinkTimer = millis();
-  midiReadTimer = millis();
 
   // Some of the digi-pots are volatile, so they won't hold value after a restart of the controller
   // read them all into the global variables and force them to set the digital pots as well on startup
@@ -160,13 +193,13 @@ void readAnalogPotentiometers(bool forceSetDigitalPotentiometers) {
   // different values from the analogRead function.  Due to that, as long as you use the RIGHT pot (either A taper or B taper), the resistance on these doesn't matter 
   // at all.  The digi-pots, which are actually hooked up to the audio effect circuit, DO have to be the right values though, but we can just use Linear taper for all of those,
   // since we aren't "moving" them step-by-step, we're just setting them to a value representing their fraction of movement between 0-1023 on their corresponding analog pot
-  int tempNormalPotReading = analogRead(ANALOG_POT_NORMAL);
-  int tempBritePotReading = analogRead(ANALOG_POT_BRITE);
-  int tempVolumePotReading = analogRead(ANALOG_POT_VOLUME);
-  int tempBassPotReading = analogRead(ANALOG_POT_BASS);
-  int tempMidPotReading = analogRead(ANALOG_POT_MID);
-  int tempTreblePotReading = analogRead(ANALOG_POT_TREBLE);
-
+  int tempNormalPotReading = readPotentiometerFromMultiplexer(NORMAL_POT);
+  int tempBritePotReading = readPotentiometerFromMultiplexer(BRITE_POT);
+  int tempVolumePotReading = readPotentiometerFromMultiplexer(VOLUME_POT);
+  int tempBassPotReading = readPotentiometerFromMultiplexer(BASS_POT);
+  int tempMidPotReading = readPotentiometerFromMultiplexer(MID_POT);
+  int tempTreblePotReading = readPotentiometerFromMultiplexer(TREBLE_POT);
+  
   // check if any have changed since our last reading
   bool normalPotChanged = hasPotentiometerValueChanged(normalPotReading, tempNormalPotReading);
   bool britePotChanged = hasPotentiometerValueChanged(britePotReading, tempBritePotReading);
@@ -218,6 +251,31 @@ void readAnalogPotentiometers(bool forceSetDigitalPotentiometers) {
     isPresetCurrentlyApplied = false;
     digitalWrite(PRESET_LED_PIN, LOW);
   }
+}
+
+// Reads the value of a selected potentiometer from the 4051 multiplexer
+  // PARAMETERS:
+    // int potentiometerToRead:  The number of the potentiometer to be read
+  // RETURNS:
+    // The value of the selected potentiometer
+  // REMARKS:
+    // Adapted From: https://cityos.io/tutorial/1958/Use-multiplexer-with-Arduino
+int readPotentiometerFromMultiplexer(uint8_t potentiometerToRead) {
+  
+  pin_A_value = bitRead(potentiometerToRead, 0);   // Take the first bit from binary value of potentiometerToRead
+  pin_B_value = bitRead(potentiometerToRead, 1);   // Take the second bit from binary value of potentiometerToRead
+  pin_C_value = bitRead(potentiometerToRead, 2);   // Take the third bit from binary value of potentiometerToRead
+
+  // Use our selector pins to write the selected address for the multiplexer
+  digitalWrite(MUX_SELECT_PIN_A, pin_A_value);
+  digitalWrite(MUX_SELECT_PIN_B, pin_B_value);
+  digitalWrite(MUX_SELECT_PIN_C, pin_C_value);
+
+  // Read the value from the multiplexer for our selected potentiometer  
+  lastReadPotValue = analogRead(ANALOG_MULTIPLEX_PIN);
+
+  // return the value to caller
+  return lastReadPotValue;
 }
 
 // Determines if an analog potentiometer value has changed since the last reading, outside of allowable tolerances
@@ -810,8 +868,5 @@ void loop() {
   }
 
   // always process MIDI commands
-  if ((millis() - midiReadTimer) > MIDI_CHECK_FREQUENCY_TIME) {
-      processMidiCommands();
-      midiReadTimer = millis();
-  }
+  processMidiCommands();
 }
