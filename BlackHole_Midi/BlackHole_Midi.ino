@@ -28,8 +28,8 @@
 
 // Atmega 328p PIN definitions (all definitions for the TQFP-32 package)
 // Note that we do not use all of these in code, but I've included them here for wiring reference
-#define MAX_SWITCH_EFFECT           1           // Used to switch the effect on/off - Goes to the IN1/IN2 Pin on MAX4701
-#define MAX_SWITCH_BOOST            2           // Used to switch the boost on/off - Goes to the IN3/IN4 Pin on MAX4701
+#define MAX_SWITCH_EFFECT           1           // Used to switch the effect on/off - Goes to the IN1/IN2 Pin on MAX4701 (Pin 4)
+#define MAX_SWITCH_BOOST            2           // Used to switch the boost on/off - Goes to the IN3/IN4 Pin on MAX4701 (Pin 12)
 #define GND_ONE                     3           // The first GND pin on the Atmega328p -- NOT USED IN CODE
 #define VCC_ONE                     4           // The first VCC pin on the Atmega328p -- NOT USED IN CODE
 #define GND_TWO                     5           // The second GND pin on the Atmega328p -- NOT USED IN CODE
@@ -877,3 +877,4 @@ void loop() {
 // Logic already tested on Metro
   // Footswitch reading/behavior
   // LED Blinking/Behavior
+  // MAX4701 Switching behavior
