@@ -831,7 +831,7 @@ void seedEEPROMIfNeeded() {
     // Now, set every other value in EEPROM to 0 - by default the EEPROM will return 255 if never written to, 
     // which would actually be MAX value on the potentiometers!  So if you accidentally recalled a preset that you 
     // had never actually saved, it would MAX ALL VALUES!  And we don't want that!
-    for (int i = i; i < 1024; i++) {
+    for (int i = 1; i < 1024; i++) {
       EEPROM[i] = 0;
     }
   }
@@ -877,10 +877,25 @@ void loop() {
 }
 
 // Logic remaining to test on Metro (test on larger Metro device before Atmega328p device)
-  // The Rest - FILL THIS IN
+  // Test both SPI devices (25K and 250K pots) hooked up at the same time
+  // Test 1M digital pot (I2C) (Bass) by itself - Only the 1 register
+  // Test 1M digital pot (I2C) (Normal/Brite) by itself - Both Registers
+  // Test 100K digital pot (I2C) (Volume) by itself - Only the 1 register
+  // Test all three I2C devices hooked up at the same time
+  // Evaluate if the SPI communication delay time can be shorter than 50 ms
+  // Test EEPROM - Seed EEPROM / Read from EEPROM / Write to EEPROM / Recall from EEPROM
+  // Read ONE pot from Analog Multiplexer (4051)
+  // Read all 6 pots at once from Analog Multiplexer (4051) at the same time
+  // Ensure each of the 6 analog pots appropriately changes the value on the digital pots
+  // Recalling MIDI preset pulls the right value from EEPROM and sets the digital pots accordingly
+  // Sending MIDI CC’s set the right value to the Pots (or turn the boost/effect on/off)
+  // Changing a preset turns off “preset” mode
+  // EVERYTHING hooked up at once
+
 
 // Logic already tested on Metro
   // Footswitch reading/behavior
   // LED Blinking/Behavior
   // MAX4701 Switching behavior
-  // 25k SPI Digi-pot, by itself (need to test with it daisy chained to the 250k SPI digi-pot)
+  // 25k SPI Digi-pot, by itself
+  // 25k SPI Digi-pot, by itself
