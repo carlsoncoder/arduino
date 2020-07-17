@@ -883,11 +883,10 @@ void loop() {
   // Test 100K digital pot (I2C) (Volume) by itself - Only the 1 register
   // Test all three I2C devices hooked up at the same time
   // Evaluate if the SPI communication delay time can be shorter than 50 ms
-  // Test EEPROM - Seed EEPROM / Read from EEPROM / Write to EEPROM / Recall from EEPROM
   // Read ONE pot from Analog Multiplexer (4051)
   // Read all 6 pots at once from Analog Multiplexer (4051) at the same time
   // Ensure each of the 6 analog pots appropriately changes the value on the digital pots
-  // Recalling MIDI preset pulls the right value from EEPROM and sets the digital pots accordingly
+  // Recalling MIDI preset sets the digital pots accordingly
   // Sending MIDI CC’s set the right value to the Pots (or turn the boost/effect on/off)
   // Changing a preset turns off “preset” mode
   // EVERYTHING hooked up at once
