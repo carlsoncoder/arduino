@@ -28,8 +28,8 @@
 
 // Atmega 328p PIN definitions (all definitions for the TQFP-32 package)
 // Note that we do not use all of these in code, but I've included them here for wiring reference
-#define MAX_SWITCH_EFFECT           1           // Used to switch the effect on/off - Goes to the IN1/IN2 Pin on MAX4701
-#define MAX_SWITCH_BOOST            2           // Used to switch the boost on/off - Goes to the IN3/IN4 Pin on MAX4701
+#define MAX_SWITCH_EFFECT           1           // Used to switch the effect on/off - Goes to the IN1/IN2 Pin on MAX4701 (Pin 4)
+#define MAX_SWITCH_BOOST            2           // Used to switch the boost on/off - Goes to the IN3/IN4 Pin on MAX4701 (Pin 12)
 #define GND_ONE                     3           // The first GND pin on the Atmega328p -- NOT USED IN CODE
 #define VCC_ONE                     4           // The first VCC pin on the Atmega328p -- NOT USED IN CODE
 #define GND_TWO                     5           // The second GND pin on the Atmega328p -- NOT USED IN CODE
@@ -75,6 +75,7 @@
 #define LONG_PRESS_THRESHOLD        1500        // The time in milliseconds for a button press to be considered a "long press" (to go into "Preset Save" mode)
 #define PRESET_MODE_TIMEOUT         30000       // The amount of time in milliseconds we will wait in "Preset Save" mode before giving up
 #define SPI_DELAY_TIME              50          // The time in milliseconds to delay operations after pulling an SPI CS pin HIGH for SPI communications
+#define SPI_MAXIMUM_SPEED           20000000    // The maximum clock speed for the SPI digi-pot IC's (20000000 = 20 Mhz)
 
 // state management
 byte expectedMidiChannel; // set in "seedEEPROMIfNeeded(...)" - Note that this value is actually 1 less than the MIDI channel we send commands on, since the MIDI channel byte is 0-15, not 1-16 like the controller itself would send
@@ -154,9 +155,10 @@ void setup() {
   digitalWrite(CS_SELECTPIN_25K, HIGH);
   digitalWrite(CS_SELECTPIN_250K, HIGH);
 
-  // start the Wire (I2C) and the SPI library communications
+  // start the Wire (I2C), SPI, and Serial library communications
   Wire.begin();
   SPI.begin();
+  Serial.begin(9600);
 
   // start our timers
   presetLedBlinkTimer = millis();
@@ -353,6 +355,8 @@ void setTrebleDigitalPotentiometer(int trebleReading) {
     // Adapted From: https://www.arduino.cc/en/Tutorial/DigitalPotControl & http://www.grozeaion.com/electronics/arduino?amp;view=article&amp;catid=35:digital-photos&amp;id=125:gvi-dslr-rc-with-touch-shield-slide
     // Coded to work with the AD5235 series - https://www.analog.com/media/en/technical-documentation/data-sheets/AD5235.pdf
 void writeToSpiPotentiometer(int spiCSSelectPin, uint16_t value) {
+  SPI.beginTransaction(SPISettings(SPI_MAXIMUM_SPEED, MSBFIRST, SPI_MODE0));
+
   digitalWrite(spiCSSelectPin, LOW);
   delay(SPI_DELAY_TIME);
 
@@ -369,6 +373,7 @@ void writeToSpiPotentiometer(int spiCSSelectPin, uint16_t value) {
   }
   
   digitalWrite(spiCSSelectPin, HIGH);
+  SPI.endTransaction();
 }
 
 // Writes a value to one of the I2C digi-pots (Normal/Brite share one dual-channel I2C pot, Volume has it's own I2C pot, and Bass has it's own I2C pot)
@@ -826,7 +831,7 @@ void seedEEPROMIfNeeded() {
     // Now, set every other value in EEPROM to 0 - by default the EEPROM will return 255 if never written to, 
     // which would actually be MAX value on the potentiometers!  So if you accidentally recalled a preset that you 
     // had never actually saved, it would MAX ALL VALUES!  And we don't want that!
-    for (int i = i; i < 1024; i++) {
+    for (int i = 1; i < 1024; i++) {
       EEPROM[i] = 0;
     }
   }
@@ -872,8 +877,24 @@ void loop() {
 }
 
 // Logic remaining to test on Metro (test on larger Metro device before Atmega328p device)
-  // The Rest - FILL THIS IN
+  // Test both SPI devices (25K and 250K pots) hooked up at the same time
+  // Test 1M digital pot (I2C) (Bass) by itself - Only the 1 register
+  // Test 1M digital pot (I2C) (Normal/Brite) by itself - Both Registers
+  // Test 100K digital pot (I2C) (Volume) by itself - Only the 1 register
+  // Test all three I2C devices hooked up at the same time
+  // Evaluate if the SPI communication delay time can be shorter than 50 ms
+  // Read ONE pot from Analog Multiplexer (4051)
+  // Read all 6 pots at once from Analog Multiplexer (4051) at the same time
+  // Ensure each of the 6 analog pots appropriately changes the value on the digital pots
+  // Recalling MIDI preset sets the digital pots accordingly
+  // Sending MIDI CC’s set the right value to the Pots (or turn the boost/effect on/off)
+  // Changing a preset turns off “preset” mode
+  // EVERYTHING hooked up at once
+
 
 // Logic already tested on Metro
   // Footswitch reading/behavior
   // LED Blinking/Behavior
+  // MAX4701 Switching behavior
+  // 25k SPI Digi-pot, by itself
+  // 25k SPI Digi-pot, by itself
