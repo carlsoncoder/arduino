@@ -11,8 +11,8 @@
 #define KOKO_BOOST_MIDS               7
 
 // Possible amp voicings
-#define CLEAN_FENDER                  1
-#define CLEAN_MARSHALL                2
+#define CLEAN_MARSHALL                1
+#define CLEAN_FENDER                  2
 #define OVERDRIVE_VINTAGE             3
 #define OVERDRIVE_MODERN              4
 
@@ -68,6 +68,8 @@ int currentAmpChannel;
 int currentAmpCleanVoicing;
 int currentAmpOverdriveVoicing;
 int currentKokoBoostState;
+bool isVoiceRingRelayInResetMode;
+bool isChannelTipRelayInResetMode;
 
 // Incoming MIDI values
 byte midiByte;
@@ -106,6 +108,8 @@ void setup() {
   currentAmpCleanVoicing = CLEAN_FENDER;
   currentAmpOverdriveVoicing = OVERDRIVE_VINTAGE;
   currentKokoBoostState = STATE_KOKO_BOOST_OFF;
+  isVoiceRingRelayInResetMode = false;
+  isChannelTipRelayInResetMode = false;
   
   // setup ReceiveOnlySoftwareSerial for MIDI control
   midiSerial.begin(31250);
@@ -114,7 +118,129 @@ void setup() {
 }
 
 void handleAmpSwitcherProgramChange(byte programChangeByte) {
-  // TODO: JUSTIN: FINISH THIS
+  bool wasValidProgramChange = true;
+  bool switchChannel = false;
+  bool switchVoicing = false;
+
+  switch (programChangeByte) {
+    case CLEAN_CHANNEL_MARSHALL: {
+      if (currentAmpChannel == CLEAN_CHANNEL && currentAmpCleanVoicing == CLEAN_FENDER) {
+        // just need to switch voicing
+        switchVoicing = true;
+        currentAmpCleanVoicing = CLEAN_MARSHALL;
+      }
+      else if (currentAmpChannel == OVERDRIVE_CHANNEL) {
+        // definitely need to change channel
+        switchChannel = true;
+        currentAmpChannel = CLEAN_CHANNEL;
+
+        // MIGHT need to switch clean voicing
+        if (currentAmpCleanVoicing == CLEAN_FENDER) {
+          // switch voicing
+          switchVoicing = true;
+          currentAmpCleanVoicing = CLEAN_MARSHALL;
+        }
+      }
+          
+      break;
+    }
+    case CLEAN_CHANNEL_FENDER: {
+      if (currentAmpChannel == CLEAN_CHANNEL && currentAmpCleanVoicing == CLEAN_MARSHALL) {
+        // just need to switch voicing
+        switchVoicing = true;
+        currentAmpCleanVoicing = CLEAN_FENDER;
+      }
+      else if (currentAmpChannel == OVERDRIVE_CHANNEL) {
+        // definitely need to change channel
+        switchChannel = true;
+        currentAmpChannel = CLEAN_CHANNEL;
+
+        // MIGHT need to switch clean voicing
+        if (currentAmpCleanVoicing == CLEAN_MARSHALL) {
+          // switch voicing
+          switchVoicing = true;
+          currentAmpCleanVoicing = CLEAN_FENDER;
+        }
+      }
+
+      break;
+    }
+    case OVERDRIVE_CHANNEL_VINTAGE: {
+      if (currentAmpChannel == OVERDRIVE_CHANNEL && currentAmpOverdriveVoicing == OVERDRIVE_MODERN) {
+        // just need to switch voicing
+        switchVoicing = true;
+        currentAmpOverdriveVoicing = OVERDRIVE_VINTAGE;
+      }
+      else if (currentAmpChannel == CLEAN_CHANNEL) {
+        // definitely need to change channel
+        switchChannel = true;
+        currentAmpChannel = OVERDRIVE_CHANNEL;
+
+        // MIGHT need to switch overdrive voicing
+        if (currentAmpOverdriveVoicing == OVERDRIVE_MODERN) {
+          // switch voicing
+          switchVoicing = true;
+          currentAmpOverdriveVoicing = OVERDRIVE_VINTAGE;
+        }
+      }
+
+      break;
+    }
+    case OVERDRIVE_CHANNEL_MODERN: {
+      if (currentAmpChannel == OVERDRIVE_CHANNEL && currentAmpOverdriveVoicing == OVERDRIVE_VINTAGE) {
+        // just need to switch voicing
+        switchVoicing = true;
+        currentAmpOverdriveVoicing = OVERDRIVE_MODERN;
+      }
+      else if (currentAmpChannel == CLEAN_CHANNEL) {
+        // definitely need to change channel
+        switchChannel = true;
+        currentAmpChannel = OVERDRIVE_CHANNEL;
+
+        // MIGHT need to switch overdrive voicing
+        if (currentAmpOverdriveVoicing == OVERDRIVE_VINTAGE) {
+          // switch voicing
+          switchVoicing = true;
+          currentAmpOverdriveVoicing = OVERDRIVE_MODERN;
+        }
+      }
+
+      break;
+    }
+    default: {
+      wasValidProgramChange = false;
+    }
+  }
+  
+  if (wasValidProgramChange) {
+    setRelaysForAmpChannelVoiceSwitch(switchChannel, switchVoicing);
+  }
+}
+
+// IF the connection is OFF (the default state, i.e., if "!isVoiceRingRelayInResetMode" or "!isChannelTipRelayInResetMode"), pulse coil 2 to turn it on
+// IF the connection is ON (non-default state, i.e., if "isVoiceRingRelayInResetMode" or "isChannelTipRelayInResetMode"), pulse coil 1 to turn it off
+void setRelaysForAmpChannelVoiceSwitch(bool switchChannel, bool switchVoicing) {
+  // ALWAYS switch the channel before switching voicing!
+  if (switchChannel) {
+    int pinToPulse = isChannelTipRelayInResetMode ? TQRELAY_AMP_CHANNEL_TIP_COIL1_PIN : TQRELAY_AMP_CHANNEL_TIP_COIL2_PIN;
+    pulsePin(pinToPulse);
+
+    // set the state to the opposite value
+    isChannelTipRelayInResetMode = !isChannelTipRelayInResetMode;
+
+    // if we plan to switch the voicing after the channel, add a short delay
+    if (switchVoicing) {
+      delay(MIDI_WAIT_TIME);
+    }
+  }
+
+  if (switchVoicing) {
+     int pinToPulse = isVoiceRingRelayInResetMode ? TQRELAY_AMP_VOICE_RING_COIL1_PIN : TQRELAY_AMP_VOICE_RING_COIL2_PIN;
+     pulsePin(pinToPulse);
+
+     // set the state to the opposite value
+     isVoiceRingRelayInResetMode = !isVoiceRingRelayInResetMode;
+  }
 }
 
 void handleBoostProgramChange(byte programChangeByte) {
@@ -197,10 +323,11 @@ void loop() {
       if (programChangeByte >= 1 && programChangeByte <= 4) {
         handleAmpSwitcherProgramChange(programChangeByte);
       }
-      if (programChangeByte >= 5 && programChangeByte <= 7) {
+      else if (programChangeByte >= 5 && programChangeByte <= 7) {
         handleBoostProgramChange(programChangeByte);
       }
     }
  }
 }
+
   
