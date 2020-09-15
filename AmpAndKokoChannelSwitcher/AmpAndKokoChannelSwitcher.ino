@@ -9,6 +9,8 @@
 #define KOKO_BOOST_OFF                5
 #define KOKO_BOOST_CLEAN              6
 #define KOKO_BOOST_MIDS               7
+#define TUNER_ENGAGED                 8
+#define TUNER_DISENGAGED              9
 
 // Possible amp voicings
 #define CLEAN_MARSHALL                1
@@ -68,6 +70,7 @@ int currentAmpChannel;
 int currentAmpCleanVoicing;
 int currentAmpOverdriveVoicing;
 int currentKokoBoostState;
+int savedKokoBoostStateForTunerReset;
 bool isVoiceRingRelayInResetMode;
 bool isChannelTipRelayInResetMode;
 
@@ -110,6 +113,7 @@ void setup() {
   currentKokoBoostState = STATE_KOKO_BOOST_OFF;
   isVoiceRingRelayInResetMode = false;
   isChannelTipRelayInResetMode = false;
+  savedKokoBoostStateForTunerReset = -1;
   
   // setup ReceiveOnlySoftwareSerial for MIDI control
   midiSerial.begin(31250);
@@ -244,6 +248,38 @@ void setRelaysForAmpChannelVoiceSwitch(bool switchChannel, bool switchVoicing) {
 }
 
 void handleBoostProgramChange(byte programChangeByte) {
+  if (programChangeByte == TUNER_ENGAGED) {
+    if (currentKokoBoostState == STATE_KOKO_BOOST_OFF) {
+      // nothing to do
+      return;
+    }
+    else {
+      // If the Koko Boost is currently enabled, and we're engaging the tuner, save the current value in state
+      savedKokoBoostStateForTunerReset = currentKokoBoostState;
+
+      // change the programChangeByte - this will force this function to turn the Koko Boost off when engaging the tuner
+      programChangeByte = KOKO_BOOST_OFF;
+    }
+  }
+  else if (programChangeByte == TUNER_DISENGAGED) {
+    if (savedKokoBoostStateForTunerReset == -1) {
+      // nothing to do
+      return;
+    }
+    else {
+      // turning off the tuner, so set the Koko Boost back to it's previous state
+      programChangeByte = savedKokoBoostStateForTunerReset == STATE_KOKO_BOOST_CLEAN ? KOKO_BOOST_CLEAN : KOKO_BOOST_MIDS;
+      
+      // and clear out the saved state
+      savedKokoBoostStateForTunerReset = -1;
+    }
+  }
+  else {
+    // regular (non-tuner) related change, clear out the saved state
+    savedKokoBoostStateForTunerReset = -1;
+  }
+
+  
   switch (programChangeByte) {
     case KOKO_BOOST_OFF: {
           Serial.println("Processing KOKO_BOOST_OFF program change...");
@@ -323,7 +359,7 @@ void loop() {
       if (programChangeByte >= 1 && programChangeByte <= 4) {
         handleAmpSwitcherProgramChange(programChangeByte);
       }
-      else if (programChangeByte >= 5 && programChangeByte <= 7) {
+      else if (programChangeByte >= 5 && programChangeByte <= 9) {
         handleBoostProgramChange(programChangeByte);
       }
     }
