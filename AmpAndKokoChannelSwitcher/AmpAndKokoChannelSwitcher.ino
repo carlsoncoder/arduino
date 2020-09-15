@@ -89,6 +89,9 @@ ReceiveOnlySoftwareSerial midiSerial(MIDI_RECEIVE_PIN);
   // The Clean channel should have the "Fender" voicing enabled (Green LED on)
   // The current selected channel should be the "Clean" channel
 
+// NOTES
+  // Tested with Port 4 on MC8 MIDI Controller, Tip to Resistor/Ring to Diode
+      
 void setup() {
   // set all relay pins to be OUTPUT
   pinMode(TQRELAY_BOOST_TIP_COIL1_PIN, OUTPUT);
@@ -336,7 +339,6 @@ void pulsePin(int pinNumber) {
 
 void loop() {
   if (midiSerial.available() > 0) {
-
     // read MIDI byte
     midiByte = midiSerial.read();
 
@@ -346,15 +348,8 @@ void loop() {
 
     // We only want to process Program Change (PC) commands sent specifically to our channel
     if (midiChannel == MIDI_LISTEN_CHANNEL && midiCommand == MIDI_PROGRAM_CHANGE) {
-      
       // read the next immediate byte to get what PC we should execute
       programChangeByte = midiSerial.read();
-
-      // For some reason, with the current setup (Port 4 on MC8, Tip to resistor, Ring to Diode),
-      // the Program Change is 128 higher than what is actually sent (so if you send "3" from the MC8, this shows as 131)
-      // We handle this by simply subtracting 128 from the value, but this is hacky and would likely break with a different MIDI
-      // controller, or even a different port on the MC8!
-      programChangeByte = programChangeByte - 128;
 
       if (programChangeByte >= 1 && programChangeByte <= 4) {
         handleAmpSwitcherProgramChange(programChangeByte);
